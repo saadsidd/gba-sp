@@ -1,94 +1,129 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import * as TWEEN from 'tween';
+import {
+    scene, camera, renderer, controls,
+    loadingManager, rgbeLoader, gltfLoader
+} from './init.js';
+import { path } from './settings.js';
 
-
-// Scene
-const scene = new THREE.Scene();
-// scene.background = new THREE.Color(0xF5E2E4);
-scene.background = new THREE.Color('skyblue');
-
+let gameboy;
+let screen, screenTween = undefined;
+const parts = {};
+let part = 'Main';
+const categories = {
+    'Main': ['Base Top', 'Base Bottom', 'Screen Top', 'Screen Bottom'],
+    'Buttons': ['Button Dpad', 'Button A', 'Button B', 'Button L', 'Button R', 'Button Select', 'Button Start', 'Button Light', 'Power Switch', 'Volume Slider'],
+    'Text': ['Button A Text', 'Button B Text', 'Button L Text', 'Button R Text', 'Button Light Symbol', 'Start Select Text'],
+    'Other': ['Hinge', 'Screen Accents', 'Power Link Ports']
+};
 
 // DOM
-const baseColor = new THREE.Color(0xFF0000);
-let baseModel;
-document.getElementById('base-color').addEventListener('input', (event) => {
-    // baseColor.setStyle(event.target.value);
-    // baseModel.material.color = baseColor;
-    // console.log(scene.background);
-    scene.background.setStyle(event.target.value);
-});
+const colorSelect = document.getElementById('color-select');
+const partSelect = document.getElementById('part-select')
+const angles = document.getElementsByClassName('angle');
+const brightness = document.getElementById('brightness');
 
+console.log(angles[0].value);
 
-// Camera
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-camera.position.set(2, 2, 2);
-camera.lookAt(new THREE.Vector3(0, 0, 0));
-
-// Renderer
-const renderer = new THREE.WebGLRenderer({antialias: true});
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.outputEncoding = THREE.sRGBEncoding;
-document.body.appendChild(renderer.domElement);
-renderer.toneMappingExposure = 0.7;
-
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.render(scene, camera);
-});
-
-// Light
-const ambientLight = new THREE.AmbientLight(0xFFFFFF, 3);
-// scene.add(ambientLight);
-
-const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 3);
-// scene.add(directionalLight);
-
-const pointLight = new THREE.PointLight(0xFFFFFF, 1);
-pointLight.position.set(0, 2, 1);
-// scene.add(pointLight);
-
-const pointLightHelper = new THREE.PointLightHelper(pointLight, 0.1);
-scene.add(pointLightHelper);
-
-// Orbit controls
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.minDistance = 1.5;
-controls.maxDistance = 10;
-// controls.enablePan = false;
-controls.enableDamping = true;
-
-// Cube
-const cube = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.5, 0.5),
-    new THREE.MeshStandardMaterial({color: 0xFF0000})
-);
-cube.position.set(0, 2, 0);
-scene.add(cube);
-
-// HDR
-const rgbeLoader = new RGBELoader();
-rgbeLoader.load('../assets/dancing_hall_1k.hdr', function(hdr) {
+// LOAD
+rgbeLoader.load(path + 'assets/dancing_hall_1k.hdr', hdr => {
     hdr.mapping = THREE.EquirectangularReflectionMapping;
     scene.environment = hdr;
-    // scene.background = hdr;
 });
 
-// Loader
-const gltfLoader = new GLTFLoader();
-gltfLoader.load('../assets/gba-sp.glb', function(gltf) {
-    gltf.scene.children[1].rotation.x -= Math.PI / 2.5;
-    scene.add(gltf.scene);
+gltfLoader.load(path + 'assets/gba-sp.glb', gltf => {
+    gameboy = gltf.scene;
+    screen = gameboy.children[1];
 });
 
-// Main render loop
+loadingManager.onLoad = () => {
+    console.log('Loading Complete');
+    setTimeout(() => {
+        document.getElementById('loader-container').style.display = 'none';
+        initGameboy();
+        initListeners();
+    }, 500);
+};
+
+// Add Gameboy to scene and tween (scale, rot)
+const initGameboy = () => {
+
+    gameboy.traverse(child => {
+        if (child.isMesh) {
+            if (child.material.name[0] !== '_') {
+                parts[child.material.name] = child.material;
+            }
+        }
+    });
+
+    console.log(parts);
+
+    gameboy.position.y = -1;
+    gameboy.scale.set(0, 0, 0);
+    scene.add(gameboy);
+
+    new TWEEN.Tween({x: 0, y: 0, z: 0, rotY: 0})
+    .to({x: 3, y: 3, z: 3, rotY: 2 * Math.PI}, 2000)
+    .easing(TWEEN.Easing.Elastic.Out)
+    .delay(500)
+    .onUpdate(obj => {
+        gameboy.scale.set(obj.x, obj.y, obj.z);
+        gameboy.rotation.y = obj.rotY;
+    })
+    .start();
+
+};
+
+// Set listeners on DOM elements for color select, angle change
+const initListeners = () => {
+
+    colorSelect.addEventListener('input', (event) => {
+        const pickedColor = event.target.value;
+
+        if (part === 'Main' || part === 'Buttons' || part === 'Text' || part === 'Other') {
+            for (const p of categories[part]) {
+                parts[p].color.setStyle(pickedColor);
+            }
+        } else if (part === 'Background') {
+            scene.background.setStyle(pickedColor);
+        }
+        else {
+            parts[part].color.setStyle(pickedColor);
+        }
+    });
+
+    partSelect.addEventListener('change', event => {
+        part = event.target.value;
+        if (part === 'Background') {
+            colorSelect.value = '#' + scene.background.getHexString();
+        } else {
+            colorSelect.value = '#' + parts[part].color.getHexString();
+        }
+    });
+
+    for (const angle of angles) {
+        angle.addEventListener('click', event => {
+            if (!screenTween) {
+                const target = event.currentTarget;
+                event.currentTarget.classList.add('active');
+
+                screenTween = new TWEEN.Tween(screen.rotation)
+                .to({x: parseFloat(target.value)}, 1000)
+                .easing(TWEEN.Easing.Quadratic.In)
+                .onComplete(() => {
+                    screenTween = undefined;
+                    target.classList.remove('active');
+                })
+                .start();
+            }
+        });
+    }
+
+    brightness.addEventListener('input', event => renderer.toneMappingExposure = parseFloat(event.target.value));
+
+};
+
+// Render Loop
 const animate = () => {
     requestAnimationFrame(animate);
     TWEEN.update();
