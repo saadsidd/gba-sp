@@ -1,29 +1,17 @@
 import * as THREE from 'three';
 import * as TWEEN from 'tween';
+import { GUI } from 'dat.gui';
 import {
     scene, camera, renderer, controls,
     loadingManager, rgbeLoader, gltfLoader
 } from './init.js';
-import { path } from './settings.js';
+
+const path = '';            // for local
+// const path = '../gba-sp/';  // for gh-pages
 
 let gameboy;
 let screen, screenTween = undefined;
 const parts = {};
-let part = 'Main';
-const categories = {
-    'Main': ['Base Top', 'Base Bottom', 'Screen Top', 'Screen Bottom'],
-    'Buttons': ['Button Dpad', 'Button A', 'Button B', 'Button L', 'Button R', 'Button Select', 'Button Start', 'Button Light', 'Power Switch', 'Volume Slider'],
-    'Text': ['Button A Text', 'Button B Text', 'Button L Text', 'Button R Text', 'Button Light Symbol', 'Start Select Text'],
-    'Other': ['Hinge', 'Screen Accents', 'Power Link Ports']
-};
-
-// DOM
-const colorSelect = document.getElementById('color-select');
-const partSelect = document.getElementById('part-select')
-const angles = document.getElementsByClassName('angle');
-const brightness = document.getElementById('brightness');
-
-console.log(angles[0].value);
 
 // LOAD
 rgbeLoader.load(path + 'assets/dancing_hall_1k.hdr', hdr => {
@@ -42,21 +30,19 @@ loadingManager.onLoad = () => {
         document.getElementById('loader-container').style.display = 'none';
         initGameboy();
         initListeners();
+        initGUI();
     }, 500);
 };
 
 // Add Gameboy to scene and tween (scale, rot)
 const initGameboy = () => {
 
+    // Populate parts object
     gameboy.traverse(child => {
-        if (child.isMesh) {
-            if (child.material.name[0] !== '_') {
-                parts[child.material.name] = child.material;
-            }
+        if (child.isMesh && child.material.name[0] !== '_') {
+            parts[child.material.name] = child.material.color;
         }
     });
-
-    console.log(parts);
 
     gameboy.position.y = -1;
     gameboy.scale.set(0, 0, 0);
@@ -74,34 +60,11 @@ const initGameboy = () => {
 
 };
 
-// Set listeners on DOM elements for color select, angle change
+// Set listeners for angle change
 const initListeners = () => {
 
-    colorSelect.addEventListener('input', (event) => {
-        const pickedColor = event.target.value;
+    for (const angle of document.getElementsByClassName('angle')) {
 
-        if (part === 'Main' || part === 'Buttons' || part === 'Text' || part === 'Other') {
-            for (const p of categories[part]) {
-                parts[p].color.setStyle(pickedColor);
-            }
-        } else if (part === 'Background') {
-            scene.background.setStyle(pickedColor);
-        }
-        else {
-            parts[part].color.setStyle(pickedColor);
-        }
-    });
-
-    partSelect.addEventListener('change', event => {
-        part = event.target.value;
-        if (part === 'Background') {
-            colorSelect.value = '#' + scene.background.getHexString();
-        } else {
-            colorSelect.value = '#' + parts[part].color.getHexString();
-        }
-    });
-
-    for (const angle of angles) {
         angle.addEventListener('click', event => {
             if (!screenTween) {
                 const target = event.currentTarget;
@@ -117,9 +80,85 @@ const initListeners = () => {
                 .start();
             }
         });
+        
     }
 
-    brightness.addEventListener('input', event => renderer.toneMappingExposure = parseFloat(event.target.value));
+};
+
+const initGUI = () => {
+
+    const categories = {
+        'Body': ['Base Top', 'Base Bottom', 'Screen Top', 'Screen Bottom', 'Screen Accents', 'Hinge', 'Power Link Ports'],
+        'Buttons': ['Button Dpad', 'Button A', 'Button B', 'Button L', 'Button R', 'Button Select', 'Button Start', 'Button Light', 'Power Switch', 'Volume Slider'],
+        'Text': ['Button A Text', 'Button B Text', 'Button L Text', 'Button R Text', 'Button Light Symbol', 'Start Select Text']
+    };
+
+    const gui = new GUI();
+
+    // Controller for adding color to GUI
+    const controller = {
+        'background': scene.background.getHex(),
+        'Body': 0xFFFFFF,
+        'Buttons': 0xFFFFFF,
+        'Text': 0xFFFFFF,
+    };
+    for (const part in parts) {
+        controller[part] = parts[part].getHex();
+    }
+
+    // Callback for individual part onChange
+    const setColor = function(value) {
+        parts[this.property].setHex(value);
+    };
+
+    // Callback for collective onChange
+    const setAll = function(value) {
+        for (const part of categories[this.property]) {
+            parts[part].setHex(value);
+        }
+    };
+    
+    // Scene GUI
+    const sceneFolder = gui.addFolder('Scene');
+    sceneFolder.addColor(controller, 'background').name('Background').onChange(value => scene.background.setHex(value));
+    sceneFolder.add(renderer, 'toneMappingExposure', 0, 1, 0.1).name('Brightness');
+
+    // Body GUI
+    const bodyFolder = gui.addFolder('Body');
+    bodyFolder.addColor(controller, 'Body').name('All').onChange(setAll);
+    bodyFolder.addColor(controller, 'Base Top').onChange(setColor);
+    bodyFolder.addColor(controller, 'Base Bottom').onChange(setColor);
+    bodyFolder.addColor(controller, 'Hinge').name('Base Hinge').onChange(setColor);
+    bodyFolder.addColor(controller, 'Power Link Ports').name('Power/Link Ports').onChange(setColor);
+    bodyFolder.addColor(controller, 'Screen Top').onChange(setColor);
+    bodyFolder.addColor(controller, 'Screen Bottom').onChange(setColor);
+    bodyFolder.addColor(controller, 'Screen Accents').onChange(setColor);
+
+    // Buttons GUI
+    const buttonsFolder = gui.addFolder('Buttons');
+    buttonsFolder.addColor(controller, 'Buttons').name('All').onChange(setAll);
+    buttonsFolder.addColor(controller, 'Button Dpad').name('D-Pad').onChange(setColor);
+    buttonsFolder.addColor(controller, 'Button A').name('A').onChange(setColor);
+    buttonsFolder.addColor(controller, 'Button B').name('B').onChange(setColor);
+    buttonsFolder.addColor(controller, 'Button R').name('R').onChange(setColor);
+    buttonsFolder.addColor(controller, 'Button L').name('L').onChange(setColor);
+    buttonsFolder.addColor(controller, 'Button Select').name('Select').onChange(setColor);
+    buttonsFolder.addColor(controller, 'Button Start').name('Start').onChange(setColor);
+    buttonsFolder.addColor(controller, 'Button Light').name('Light').onChange(setColor);
+    buttonsFolder.addColor(controller, 'Power Switch').onChange(setColor);
+    buttonsFolder.addColor(controller, 'Volume Slider').onChange(setColor);
+
+    // Text GUI
+    const textFolder = gui.addFolder('Text');
+    textFolder.addColor(controller, 'Text').name('All').onChange(setAll);
+    textFolder.addColor(controller, 'Button A Text').name('A').onChange(setColor);
+    textFolder.addColor(controller, 'Button B Text').name('B').onChange(setColor);
+    textFolder.addColor(controller, 'Button R Text').name('R').onChange(setColor);
+    textFolder.addColor(controller, 'Button L Text').name('L').onChange(setColor);
+    textFolder.addColor(controller, 'Button Light Symbol').name('Light Symbol').onChange(setColor);
+    textFolder.addColor(controller, 'Start Select Text').name('Start/Select').onChange(setColor);
+
+    gui.close();
 
 };
 
@@ -129,6 +168,7 @@ const animate = () => {
     TWEEN.update();
     controls.update();
     renderer.render(scene, camera);
+    // console.log(camera.position.x.toFixed(1), camera.position.y.toFixed(1), camera.position.z.toFixed(1));
 }
 
 animate();
