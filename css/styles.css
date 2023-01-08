@@ -5,15 +5,24 @@
 body {
     margin: 0;
     overflow: hidden;
-    background-color: red;
+    background-color: skyblue;
+}
+
+#buttons-container {
+    display: flex;
+    position: absolute;
+}
+
+#power-switch {
+    background-color: #40ff40;
+}
+
+#power-switch.active {
+    background-color: #ff0000;
 }
 
 
 /* ANGLE BUTTONS */
-#angle-container {
-    display: flex;
-    position: absolute;
-}
 
 .angle {
     width: 100px;

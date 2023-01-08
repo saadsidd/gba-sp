@@ -9,8 +9,9 @@ import {
 const path = '';            // for local
 // const path = '../gba-sp/';  // for gh-pages
 
-let gameboy;
-let screen, screenTween = undefined;
+let gameboy;                                                    // for gltf
+let powerSwitch, powerSwitchTween, powerLight, screenDisplay;   // for powering on/off animation
+let screen, screenTween;                                        // for rotating screen angle
 const parts = {};
 
 // LOAD
@@ -37,10 +38,23 @@ loadingManager.onLoad = () => {
 // Add Gameboy to scene and tween (scale, rot)
 const initGameboy = () => {
 
-    // Populate parts object
+    // Populate parts object & grab meshes/materials for powering on/off animation
     gameboy.traverse(child => {
         if (child.isMesh && child.material.name[0] !== '_') {
             parts[child.material.name] = child.material.color;
+
+            if (child.name === 'Power_Switch') {
+                powerSwitch = child;
+            }
+
+            if (child.material.name === 'Power Light') {
+                powerLight = child.material.color;
+            }
+
+            if (child.material.name === 'Screen Display') {
+                screenDisplay = child;
+            }
+
         }
     });
 
@@ -63,7 +77,10 @@ const initGameboy = () => {
 // Set listeners for angle change
 const initListeners = () => {
 
-    for (const angle of document.getElementsByClassName('angle')) {
+    // Avoiding attaching angle listener on power button
+    const angles = [...document.getElementsByClassName('angle')].slice(0, 3);
+
+    for (const angle of angles) {
 
         angle.addEventListener('click', event => {
             if (!screenTween) {
@@ -83,6 +100,46 @@ const initListeners = () => {
         
     }
 
+    // Create startup screen plane from texture made of html video
+    const startupVideo = document.getElementById('startup');
+    const startupTexture = new THREE.VideoTexture(startup);
+    startupTexture.generateMipmaps = true;
+    startupTexture.minFilter = THREE.LinearMipMapLinearFilter;
+
+    const startupScreen = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.4, 1),
+        new THREE.MeshStandardMaterial({color: 0x888888, map: startupTexture, roughness: 0.3})
+    );
+    startupScreen.position.set(0, 1.06, 0.078);
+
+    const poweringOn = new TWEEN.Tween(powerSwitch.position).to({z: -0.065}, 100).onComplete(() => powerSwitchTween = undefined);
+    const poweringOff = new TWEEN.Tween(powerSwitch.position).to({z: 0}, 100).onComplete(() => powerSwitchTween = undefined);
+
+    // Moves power switch, makes power light screen, and plays startup video
+    document.getElementById('power-switch').addEventListener('click', function(event) {
+
+        // Powering on
+        if (!powerSwitchTween) {
+            if (powerSwitch.position.z === 0) {
+                event.currentTarget.classList.add('active');
+                powerSwitchTween = poweringOn.start();
+                powerLight.setHex(0x00FF00);
+                startupVideo.play();
+                screenDisplay.add(startupScreen);
+        // Powering off
+            } else {
+                event.currentTarget.classList.remove('active');
+                powerSwitchTween = poweringOff.start();
+                powerLight.setHex(0x070707);
+                startupVideo.pause();
+                startupVideo.currentTime = 0;
+                screenDisplay.remove(startupScreen);
+            }
+
+        }
+        
+    });
+
 };
 
 const initGUI = () => {
@@ -97,30 +154,32 @@ const initGUI = () => {
 
     // Controller for adding color to GUI
     const controller = {
-        'background': scene.background.getHex(),
-        'Body': 0xFFFFFF,
-        'Buttons': 0xFFFFFF,
-        'Text': 0xFFFFFF,
+        'background': '#' + scene.background.getHexString(),
+        'Body': '#FFFFFF',
+        'Buttons': '#FFFFFF',
+        'Text': '#FFFFFF',
     };
     for (const part in parts) {
-        controller[part] = parts[part].getHex();
+        controller[part] = '#' + parts[part].getHexString();
     }
 
     // Callback for individual part onChange
     const setColor = function(value) {
-        parts[this.property].setHex(value);
+        parts[this.property].setStyle(value);
+        parts[this.property].convertSRGBToLinear();
     };
 
     // Callback for collective onChange
     const setAll = function(value) {
         for (const part of categories[this.property]) {
-            parts[part].setHex(value);
+            parts[part].setStyle(value);
+            parts[part].convertSRGBToLinear();
         }
     };
     
     // Scene GUI
     const sceneFolder = gui.addFolder('Scene');
-    sceneFolder.addColor(controller, 'background').name('Background').onChange(value => scene.background.setHex(value));
+    sceneFolder.addColor(controller, 'background').name('Background').onChange(value => scene.background.setStyle(value));
     sceneFolder.add(renderer, 'toneMappingExposure', 0, 1, 0.1).name('Brightness');
 
     // Body GUI
@@ -128,7 +187,7 @@ const initGUI = () => {
     bodyFolder.addColor(controller, 'Body').name('All').onChange(setAll);
     bodyFolder.addColor(controller, 'Base Top').onChange(setColor);
     bodyFolder.addColor(controller, 'Base Bottom').onChange(setColor);
-    bodyFolder.addColor(controller, 'Hinge').name('Base Hinge').onChange(setColor);
+    bodyFolder.addColor(controller, 'Hinge').name('Base Hinges').onChange(setColor);
     bodyFolder.addColor(controller, 'Power Link Ports').name('Power/Link Ports').onChange(setColor);
     bodyFolder.addColor(controller, 'Screen Top').onChange(setColor);
     bodyFolder.addColor(controller, 'Screen Bottom').onChange(setColor);
@@ -158,8 +217,6 @@ const initGUI = () => {
     textFolder.addColor(controller, 'Button Light Symbol').name('Light Symbol').onChange(setColor);
     textFolder.addColor(controller, 'Start Select Text').name('Start/Select').onChange(setColor);
 
-    gui.close();
-
 };
 
 // Render Loop
@@ -168,7 +225,6 @@ const animate = () => {
     TWEEN.update();
     controls.update();
     renderer.render(scene, camera);
-    // console.log(camera.position.x.toFixed(1), camera.position.y.toFixed(1), camera.position.z.toFixed(1));
 }
 
 animate();

@@ -10,15 +10,22 @@
 </head>
 <body>
 
-  <div id="angle-container">
+  <video id="startup" style="display: none;" muted playsinline>
+    <source src="../gba-sp/assets/startup.mp4" type="video/mp4">
+  </video>
+
+  <div id="buttons-container">
     <button class="angle" value="1.57">
       <img src="../gba-sp/assets/angle0.png">
     </button>
     <button class="angle" value="0">
       <img src="../gba-sp/assets/angle90.png">
     </button>
-    <button class="angle" value="-1.57">
-      <img src="../gba-sp/assets/angle180.png">
+    <button class="angle" value="-1.22">
+      <img src="../gba-sp/assets/angle165.png">
+    </button>
+    <button id="power-switch" class="angle">
+      <img src="../gba-sp/assets/power.png">
     </button>
   </div>
 
