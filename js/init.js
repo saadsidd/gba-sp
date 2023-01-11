@@ -36,22 +36,6 @@ controls.maxDistance = 25;
 controls.enablePan = true;
 controls.enableDamping = true;
 
-
-// LIGHT
-const ambientLight = new THREE.AmbientLight(0xFFFFFF, 1);
-// scene.add(ambientLight);
-
-const directionalLight = new THREE.DirectionalLight(0xFFFFFF, 3);
-// scene.add(directionalLight);
-
-const pointLight = new THREE.PointLight(0xFFFFFF, 1);
-pointLight.position.set(0, 2, 1);
-// scene.add(pointLight);
-
-const pointLightHelper = new THREE.PointLightHelper(pointLight, 0.1);
-// scene.add(pointLightHelper);
-
-
 // LOADERS
 const loadingManager = new THREE.LoadingManager();
 const rgbeLoader = new RGBELoader(loadingManager);

@@ -41,6 +41,7 @@ const initGameboy = () => {
     // Populate parts object & grab meshes/materials for powering on/off animation
     gameboy.traverse(child => {
         if (child.isMesh && child.material.name[0] !== '_') {
+
             parts[child.material.name] = child.material.color;
 
             if (child.name === 'Power_Switch') {
@@ -108,7 +109,7 @@ const initListeners = () => {
 
     const startupScreen = new THREE.Mesh(
         new THREE.PlaneGeometry(1.4, 1),
-        new THREE.MeshStandardMaterial({color: 0x888888, map: startupTexture, roughness: 0.3})
+        new THREE.MeshBasicMaterial({color: 0x888888, map: startupTexture})
     );
     startupScreen.position.set(0, 1.06, 0.078);
 
@@ -180,7 +181,7 @@ const initGUI = () => {
     // Scene GUI
     const sceneFolder = gui.addFolder('Scene');
     sceneFolder.addColor(controller, 'background').name('Background').onChange(value => scene.background.setStyle(value));
-    sceneFolder.add(renderer, 'toneMappingExposure', 0, 1, 0.1).name('Brightness');
+    sceneFolder.add(renderer, 'toneMappingExposure', 0.1, 1, 0.1).name('Brightness');
 
     // Body GUI
     const bodyFolder = gui.addFolder('Body');
@@ -221,10 +222,12 @@ const initGUI = () => {
 
 // Render Loop
 const animate = () => {
+
     requestAnimationFrame(animate);
     TWEEN.update();
     controls.update();
     renderer.render(scene, camera);
+
 }
 
 animate();
